@@ -2,8 +2,8 @@ name: Daily Flake8 Analysis
 
 on:
   schedule:
-    # Run at 7PM UTC every day
-    - cron: '0 19 * * *'
+    # Run at 7amUTC every day
+    - cron: '0 7 * * *'
   workflow_dispatch:  # Allow manual triggering
 
 jobs:
