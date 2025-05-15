@@ -13,4 +13,6 @@ pip install -r requirements.txt
 This project includes a GitHub Actions workflow that:
 - Runs daily at 7PM
 - Analyzes code with flake8
-- Reports results to Slack 
+- Reports results to Slack
+
+JUST SET A `SLACK_WEBHOOK_URL` secret
