@@ -1,0 +1,106 @@
+name: Daily Flake8 Analysis
+
+on:
+  schedule:
+    # Run at 7PM UTC every day
+    - cron: '0 19 * * *'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  flake8-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run flake8 analysis
+        id: flake8
+        continue-on-error: true
+        run: |
+          # Run flake8 and capture output and exit code
+          OUTPUT=$(flake8 . --count --statistics 2>&1) || true
+          EXIT_CODE=$?
+          
+          # Save output to file
+          echo "$OUTPUT" > flake8_output.txt
+          
+          # Count number of files with issues
+          FILE_COUNT=$(echo "$OUTPUT" | grep -c "\.py" || true)
+          
+          # Set outputs
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          echo "file_count=$FILE_COUNT" >> $GITHUB_OUTPUT
+          
+          # Echo for debugging
+          echo "Flake8 exit code: $EXIT_CODE"
+          echo "Number of files with issues: $FILE_COUNT"
+          
+          # Save flake8 output to a step output variable
+          FLAKE8_OUTPUT=$(cat flake8_output.txt)
+          echo "flake8_output<<EOF" >> $GITHUB_OUTPUT
+          echo "$FLAKE8_OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Set status message
+        id: status
+        run: |
+          if [ "${{ steps.flake8.outputs.exit_code }}" == "0" ]; then
+            echo "message=✅ Flake8 analysis completed successfully! No issues found." >> $GITHUB_OUTPUT
+            echo "color=good" >> $GITHUB_OUTPUT
+          else
+            echo "message=❌ Flake8 analysis found issues in ${{ steps.flake8.outputs.file_count }} file(s)." >> $GITHUB_OUTPUT
+            echo "color=danger" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "${{ steps.status.outputs.message }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "Daily Flake8 Analysis Results"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ steps.status.outputs.message }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "```${{ steps.flake8.outputs.exit_code == '0' && 'No issues found.' || steps.flake8.outputs.flake8_output }}```"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "Repository: <${{ github.server_url }}/${{ github.repository }}|${{ github.repository }}>"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK 
